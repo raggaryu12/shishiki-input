@@ -81,8 +81,10 @@ h1{font-size:20px;margin:0 6px 5px 0;white-space:nowrap}
 .col{width:36px;height:36px;padding:0;border:3px solid #fff;border-radius:50%;background:var(--c);box-shadow:0 0 0 1px var(--line)}
 .col.on{box-shadow:0 0 0 3px var(--ink)}
 #edForm .btn{height:44px}
-#edList{flex:1;min-height:0;overflow:auto;margin:0;padding:0;list-style:none;border-top:1px solid var(--line)}
-#edList li{display:flex;align-items:center;gap:6px;padding:5px 2px;border-bottom:1px solid var(--line)}
+#edList{position:relative;flex:1;min-height:0;overflow:auto;margin:0;padding:0;list-style:none;border-top:1px solid var(--line)}
+#edList li{display:flex;align-items:center;gap:6px;padding:5px 2px;background:#fff;border-bottom:1px solid var(--line);cursor:grab;user-select:none;-webkit-user-select:none}
+#edList li.drag{position:relative;z-index:1;background:var(--teal-bg);box-shadow:0 2px 10px rgba(20,28,44,.3);cursor:grabbing}
+.grip{flex:none;width:48px;height:40px;padding:0;border:0;border-radius:6px;background:none;color:var(--sub);font-size:22px;line-height:1;touch-action:none;cursor:grab;-webkit-touch-callout:none}
 #edList b{flex:1;min-width:0;overflow-wrap:anywhere}
 #edList .btn{height:36px}
 .svbox{display:flex;flex-direction:column;gap:10px;width:min(620px,100%);max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);padding:14px;background:#fff;border-radius:10px}
@@ -142,6 +144,7 @@ h1{font-size:20px;margin:0 6px 5px 0;white-space:nowrap}
 <div id="ed" class="ovl" hidden><div class="svbox">
   <h2>略号を足す・並べ替える</h2>
   <form id="edForm"><input id="edName" maxlength="12" placeholder="略号の名前" autocomplete="off" aria-label="略号の名前"><span id="edCols" role="radiogroup" aria-label="色"></span><button class="btn pri" type="submit">足す</button></form>
+  <p class="hint">左の ≡ をつかんで上下に動かすと、ボタンの並びが変わります。</p>
   <ul id="edList"></ul>
   <div class="seg"><button class="btn" id="edReset" type="button">最初の並びに戻す</button><button class="btn" id="edClose" type="button">閉じる</button></div>
 </div></div>
@@ -320,7 +323,7 @@ const PALETTE=[[BLUE,'青'],[RED,'赤'],[GREEN,'緑'],[ORANGE,'オレンジ'],[B
 let edColor=BLUE;
 function drawEditor(){
   $('edCols').innerHTML=PALETTE.map(([c,n])=>`<button type="button" class="col ${c===edColor?'on':''}" style="--c:${c}" data-col="${c}" role="radio" aria-checked="${c===edColor}" aria-label="${n}"></button>`).join('');
-  $('edList').innerHTML=CODES.map(([t,c],i)=>`<li><b style="color:${c}">${esc(t)}</b><button class="btn" type="button" data-up="${i}" ${i?'':'disabled'} aria-label="${esc(t)}を上へ">上へ</button><button class="btn" type="button" data-del="${i}" aria-label="${esc(t)}を削除">削除</button></li>`).join('')}
+  $('edList').innerHTML=CODES.map(([t,c],i)=>`<li data-i="${i}"><button class="grip" type="button" aria-label="${esc(t)}の順番を動かす（上下の矢印キーでも動きます）">≡</button><b style="color:${c}">${esc(t)}</b><button class="btn" type="button" data-del="${i}" aria-label="${esc(t)}を削除">削除</button></li>`).join('')}
 function openEditor(){$('ed').hidden=false;drawEditor();$('edName').focus()}
 function codesChanged(){saveCodes();drawEditor();render()}
 $('edForm').addEventListener('submit',e=>{e.preventDefault();const n=$('edName').value.trim();if(!n)return;
@@ -329,9 +332,33 @@ $('edForm').addEventListener('submit',e=>{e.preventDefault();const n=$('edName')
   CODES=[...CODES,[n,edColor]];$('edName').value='';codesChanged();const l=$('edList');l.scrollTop=l.scrollHeight;$('edName').focus()});
 $('ed').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;
   if(d.col){edColor=d.col;drawEditor()}
-  else if(d.up){const i=+d.up,a=[...CODES];[a[i-1],a[i]]=[a[i],a[i-1]];CODES=a;codesChanged()}
   else if(d.del){CODES=CODES.filter((c,i)=>i!==+d.del);codesChanged()}});
 $('edClose').onclick=()=>$('ed').hidden=true;
+// ドラッグで並べ替え。つかんだ行は DOM から動かさず、まわりの行を入れ替える（動かすとポインタのキャプチャが切れる）
+const edL=$('edList');let ord=null;
+function ordStep(){if(!ord)return;const {li,y}=ord,r=edL.getBoundingClientRect(),E=44;
+  if(y<r.top+E)edL.scrollTop-=8;else if(y>r.bottom-E)edL.scrollTop+=8;
+  const top=y-r.top+edL.scrollTop-ord.off,mid=top+li.offsetHeight/2;let p,n;
+  while((n=li.nextElementSibling)&&mid>n.offsetTop+n.offsetHeight/2)edL.insertBefore(n,li);
+  while((p=li.previousElementSibling)&&mid<p.offsetTop+p.offsetHeight/2)li.after(p);
+  const max=edL.scrollHeight-li.offsetHeight;
+  li.style.transform=`translateY(${Math.max(0,Math.min(max,top))-li.offsetTop}px)`;
+  ord.raf=requestAnimationFrame(ordStep)}
+function ordEnd(e){if(!ord||e.pointerId!==ord.id)return;cancelAnimationFrame(ord.raf);ord=null;
+  const a=[...edL.children].map(l=>CODES[+l.dataset.i]);
+  if(e.type==='pointerup'&&a.some((c,i)=>c!==CODES[i])){CODES=a;codesChanged()}else drawEditor()}
+edL.addEventListener('pointerdown',e=>{const li=e.target.closest('li');if(!li||ord||e.button)return;
+  // 指は ≡ だけ（行をなぞると一覧がスクロールする）。マウスは行のどこでも
+  if(!e.target.closest('.grip')&&(e.pointerType!=='mouse'||e.target.closest('button')))return;
+  e.preventDefault();const r=li.getBoundingClientRect();
+  ord={li,id:e.pointerId,y:e.clientY,off:e.clientY-r.top};li.classList.add('drag');
+  edL.setPointerCapture(e.pointerId);ordStep()});
+edL.addEventListener('pointermove',e=>{if(ord&&e.pointerId===ord.id)ord.y=e.clientY});
+edL.addEventListener('pointerup',ordEnd);edL.addEventListener('pointercancel',ordEnd);
+edL.addEventListener('touchmove',e=>{if(ord)e.preventDefault()},{passive:false});
+edL.addEventListener('keydown',e=>{const g=e.target.closest('.grip'),k={ArrowUp:-1,ArrowDown:1}[e.key];if(!g||!k)return;
+  e.preventDefault();const i=+g.closest('li').dataset.i,j=i+k;if(!CODES[j])return;
+  const a=[...CODES];[a[i],a[j]]=[a[j],a[i]];CODES=a;codesChanged();edL.children[j].querySelector('.grip').focus()});
 $('edReset').onclick=()=>{if(confirm('足した略号を消して、最初の並びに戻しますか？')){CODES=CODES0;codesChanged()}};
 
 // iPad は共有シートの「画像を保存」で写真に入る。共有が使えないページ（https でないとき）は画像の長押しで保存する
