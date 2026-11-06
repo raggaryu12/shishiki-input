@@ -80,6 +80,8 @@ h1{font-size:20px;margin:0 6px 5px 0;white-space:nowrap}
 #edCols{display:flex;gap:6px}
 .col{width:36px;height:36px;padding:0;border:3px solid #fff;border-radius:50%;background:var(--c);box-shadow:0 0 0 1px var(--line)}
 .col.on{box-shadow:0 0 0 3px var(--ink)}
+.col.sm{flex:none;width:32px;height:32px}
+.cols{display:flex;flex:none;gap:6px;align-items:center}
 #edForm .btn{height:44px}
 #edList{position:relative;flex:1;min-height:0;overflow:auto;margin:0;padding:0;list-style:none;border-top:1px solid var(--line)}
 #edList li{display:flex;align-items:center;gap:6px;padding:5px 2px;background:#fff;border-bottom:1px solid var(--line);cursor:grab;user-select:none;-webkit-user-select:none}
@@ -144,7 +146,7 @@ h1{font-size:20px;margin:0 6px 5px 0;white-space:nowrap}
 <div id="ed" class="ovl" hidden><div class="svbox">
   <h2>略号を足す・並べ替える</h2>
   <form id="edForm"><input id="edName" maxlength="12" placeholder="略号の名前" autocomplete="off" aria-label="略号の名前"><span id="edCols" role="radiogroup" aria-label="色"></span><button class="btn pri" type="submit">足す</button></form>
-  <p class="hint">左の ≡ をつかんで上下に動かすと、ボタンの並びが変わります。</p>
+  <p class="hint">≡ をつかんで動かすと並べ替え、色の丸を押すと文字の色を変えられます。</p>
   <ul id="edList"></ul>
   <div class="seg"><button class="btn" id="edReset" type="button">最初の並びに戻す</button><button class="btn" id="edClose" type="button">閉じる</button></div>
 </div></div>
@@ -320,11 +322,11 @@ function renderChart(){const K=2,W=800,M=14,hasD=[...DU,...DL].some(n=>D.marks[n
 
 // 略号の編集（この端末に覚える。記入済みの歯はそのまま）
 const PALETTE=[[BLUE,'青'],[RED,'赤'],[GREEN,'緑'],[ORANGE,'オレンジ'],[BLACK,'黒']];
-let edColor=BLUE;
+let edColor=BLUE,edPick=null; // edPick: 色を選んでいる略号
 function drawEditor(){
   $('edCols').innerHTML=PALETTE.map(([c,n])=>`<button type="button" class="col ${c===edColor?'on':''}" style="--c:${c}" data-col="${c}" role="radio" aria-checked="${c===edColor}" aria-label="${n}"></button>`).join('');
-  $('edList').innerHTML=CODES.map(([t,c],i)=>`<li data-i="${i}"><button class="grip" type="button" aria-label="${esc(t)}の順番を動かす（上下の矢印キーでも動きます）">≡</button><b style="color:${c}">${esc(t)}</b><button class="btn" type="button" data-del="${i}" aria-label="${esc(t)}を削除">削除</button></li>`).join('')}
-function openEditor(){$('ed').hidden=false;drawEditor();$('edName').focus()}
+  $('edList').innerHTML=CODES.map(([t,c],i)=>`<li data-i="${i}"><button class="grip" type="button" aria-label="${esc(t)}の順番を動かす（上下の矢印キーでも動きます）">≡</button><b style="color:${c}">${esc(t)}</b><span class="cols">${t===edPick?PALETTE.map(([k,n])=>`<button type="button" class="col sm ${k===c?'on':''}" style="--c:${k}" data-re="${i}" data-rc="${k}" aria-label="${esc(t)}を${n}にする"></button>`).join(''):`<button type="button" class="col sm" style="--c:${c}" data-pick="${i}" aria-label="${esc(t)}の色を変える"></button>`}</span><button class="btn" type="button" data-del="${i}" aria-label="${esc(t)}を削除">削除</button></li>`).join('')}
+function openEditor(){edPick=null;$('ed').hidden=false;drawEditor();$('edName').focus()}
 function codesChanged(){saveCodes();drawEditor();render()}
 $('edForm').addEventListener('submit',e=>{e.preventDefault();const n=$('edName').value.trim();if(!n)return;
   if(n==='Br'){toast('Br は上のボタンで入れます');return}
@@ -332,6 +334,8 @@ $('edForm').addEventListener('submit',e=>{e.preventDefault();const n=$('edName')
   CODES=[...CODES,[n,edColor]];$('edName').value='';codesChanged();const l=$('edList');l.scrollTop=l.scrollHeight;$('edName').focus()});
 $('ed').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;
   if(d.col){edColor=d.col;drawEditor()}
+  else if(d.pick){edPick=CODES[+d.pick][0];drawEditor()}
+  else if(d.re){edPick=null;CODES=CODES.map((c,i)=>i===+d.re?[c[0],d.rc]:c);codesChanged()}
   else if(d.del){CODES=CODES.filter((c,i)=>i!==+d.del);codesChanged()}});
 $('edClose').onclick=()=>$('ed').hidden=true;
 // ドラッグで並べ替え。つかんだ行は DOM から動かさず、まわりの行を入れ替える（動かすとポインタのキャプチャが切れる）
