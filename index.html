@@ -127,7 +127,7 @@ h1{font-size:20px;margin:0 6px 5px 0;white-space:nowrap}
         </div>
         <div class="brbox">
           <b>ブリッジ入力中</b>
-          <ol><li>1回押す：ポンティック</li><li>2回押す：支台歯（番号に〇）</li><li>3回押す：外す</li></ol>
+          <ol><li>1回押す：ポンティック（×）</li><li>2回押す：支台歯（番号に〇）</li><li>3回押す：外す</li></ol>
           <button class="btn" id="brNext" type="button">次のブリッジへ</button>
           <button class="btn fin" id="brEnd" type="button">ブリッジ入力を終わる</button>
         </div>
@@ -248,7 +248,9 @@ document.addEventListener('click',e=>{if(e.detail!==0)return;const t=e.target.cl
   const n=+t.dataset.n;if(brMode){tapBr(n);return}pick(n);if(sel.has(n))sel.delete(n);else sel.add(n);render()});
 
 // 画面
-function cellHtml(n,col){const m=D.marks[n]||[],r=role(n),len=m.join('').length+m.length,fs=len>16?9:len>9?10.5:len>5?12:14;
+// ポンティックは欠損なので × を自動で出す。記入のデータには入れないので、支台歯に変えたり外したりすると消える
+function marksOf(n){const m=D.marks[n]||[];return role(n)==='p'&&!m.includes('×')?['×',...m]:m}
+function cellHtml(n,col){const m=marksOf(n),r=role(n),len=m.join('').length+m.length,fs=len>16?9:len>9?10.5:len>5?12:14;
   const cl=['t',sel.has(n)?'sel':'',r==='a'?'abut':r==='p'?'pont':''].join(' ');
   const say=tname(n)+(r==='a'?' 支台歯':r==='p'?' ポンティック':'')+(m.length?' '+m.join(' '):'');
   return `<button type="button" class="${cl}" data-n="${n}" style="grid-column:${col}" aria-label="${esc(say)}" aria-pressed="${sel.has(n)}"><span class="codes" style="font-size:${fs}px">${m.map(t=>`<span style="color:${codeColor(t)}">${esc(t)}</span>`).join('')}</span><i class="no">${num(n)}</i></button>`}
@@ -259,12 +261,13 @@ function barsHtml(arch){return D.br.filter(b=>archOf(+Object.keys(b.t)[0])===arc
     return `<div class="bar" style="grid-column:${a}/${z+1}"><b>Br</b></div>`}).join('')}
 function padHtml(){const has=c=>sel.size&&[...sel].every(n=>(D.marks[n]||[]).includes(c)),off=brMode||!sel.size?'disabled':'';
   return `<button type="button" class="ab br" id="brBtn">Br（ブリッジ）</button>`+CODES.map(([t,c],i)=>`<button type="button" class="ab ${t.length>4?'s':''} ${has(t)?'has':''}" style="--c:${c}" data-c="${i}" ${off}>${esc(t)}</button>`).join('')+`<button type="button" class="ab o s" data-free="1" ${off}>その他（文字）</button><button type="button" class="ab o s" id="edBtn">＋ 略号を足す</button>`}
+function drawX(c,x,y,r){c.strokeStyle=codeColor('×');c.lineWidth=7;c.lineCap='round';c.beginPath();c.moveTo(x-r,y-r);c.lineTo(x+r,y+r);c.moveTo(x+r,y-r);c.lineTo(x-r,y+r);c.stroke()}
 function drawOverlay(c,showSel){
-  for(const n in D.marks)if(D.marks[n].includes('×')){const [x,y,r]=toothXY(+n);c.strokeStyle=BLACK;c.lineWidth=7;c.lineCap='round';c.beginPath();c.moveTo(x-r,y-r);c.lineTo(x+r,y+r);c.moveTo(x+r,y-r);c.lineTo(x-r,y+r);c.stroke()}
+  for(const n in D.marks)if(D.marks[n].includes('×')){const [x,y,r]=toothXY(+n);drawX(c,x,y,r)}
   for(const b of D.br){const ts=brTeeth(b),ps=ts.map(toothXY);
     c.strokeStyle=BR;c.lineWidth=7;c.lineCap='round';c.lineJoin='round';c.beginPath();ps.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.stroke();
-    ts.forEach((n,i)=>{const [x,y,r]=ps[i];c.beginPath();c.arc(x,y,b.t[n]==='a'?r+6:r*.55,0,7);
-      if(b.t[n]==='a'){c.lineWidth=7;c.stroke()}else{c.fillStyle=BR;c.fill()}});
+    ts.forEach((n,i)=>{const [x,y,r]=ps[i];
+      if(b.t[n]==='a'){c.strokeStyle=BR;c.lineWidth=7;c.beginPath();c.arc(x,y,r+6,0,7);c.stroke()}else drawX(c,x,y,r)});
     const m=ps[Math.floor((ps.length-1)/2)],m2=ps[Math.ceil((ps.length-1)/2)];let lx=(m[0]+m2[0])/2,ly=(m[1]+m2[1])/2;
     const dx=lx-420,dy=ly-430,dl=Math.hypot(dx,dy)||1;lx=Math.min(806,Math.max(34,lx+dx/dl*80));ly=Math.min(820,Math.max(20,ly+dy/dl*80));
     c.fillStyle=BR;c.beginPath();c.roundRect(lx-30,ly-19,60,38,19);c.fill();
@@ -298,13 +301,13 @@ function drawCell(c,x,y,w,h,n,top){const r=role(n);
   const ny=top?y+h-13:y+13;
   if(r==='a'){c.strokeStyle=BR;c.fillStyle='#fff';c.lineWidth=2;c.beginPath();c.arc(x+w/2,ny,10,0,7);c.fill();c.stroke()}
   c.fillStyle=r?BR:'#667085';c.font=`700 14px ${FONT}`;c.textAlign='center';c.textBaseline='middle';c.fillText(num(n),x+w/2,ny+.5);
-  const m=D.marks[n]||[];if(!m.length)return;
+  const m=marksOf(n);if(!m.length)return;
   const ah=h-29,{s,ls}=fitCodes(c,m,w-5,ah);c.font=`700 ${s}px ${FONT}`;c.textBaseline='top';const lh=s*1.18;
   const y0=top?y+h-27-ls.length*lh:y+27;ls.forEach(([l,col],i)=>{c.fillStyle=col;c.fillText(l,x+w/2,y0+i*lh)})}
 function drawBars(c,arch,xOf,cw,y,top){for(const b of D.br){if(archOf(+Object.keys(b.t)[0])!==arch)continue;const ts=brTeeth(b),a=xOf(arch.indexOf(ts[0]))+6,z=xOf(arch.indexOf(ts[ts.length-1]))+cw-6,e=top?y+7:y-7;
     c.strokeStyle=BR;c.lineWidth=2.4;c.lineJoin='round';c.beginPath();c.moveTo(a,e);c.lineTo(a,y);c.lineTo(z,y);c.lineTo(z,e);c.stroke();
     c.fillStyle=BR;c.beginPath();c.roundRect((a+z)/2-15,y-9,30,18,9);c.fill();c.fillStyle='#fff';c.font=`700 12px ${FONT}`;c.textAlign='center';c.textBaseline='middle';c.fillText('Br',(a+z)/2,y+.5)}}
-function renderChart(){const K=2,W=800,M=14,hasD=[...DU,...DL].some(n=>D.marks[n]),fh=76,dh=62,sz=hasD?400:440;
+function renderChart(){const K=2,W=800,M=14,hasD=[...DU,...DL].some(n=>marksOf(n).length),fh=76,dh=62,sz=hasD?400:440;
   const H=M+10+16+10+fh+3+(hasD?dh+3:0)+6+sz+6+(hasD?dh+3:0)+fh+10+20+M;
   const cv=document.createElement('canvas');cv.width=W*K;cv.height=H*K;
   const c=cv.getContext('2d');c.scale(K,K);c.fillStyle='#fff';c.fillRect(0,0,W,H);
