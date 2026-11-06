@@ -66,15 +66,26 @@ h1{font-size:20px;margin:0 6px 5px 0;white-space:nowrap}
 .ab.has{background:var(--c);color:#fff;border-color:var(--c)}
 .ab.br{grid-column:1/-1;min-height:46px;color:var(--br);border:2px solid var(--br);font-size:17px}
 .brmode .ab.br{background:var(--br);color:#fff}
-.ab.o{grid-column:span 2;color:var(--ink);font-weight:400}
+.ab.o{color:var(--ink);font-weight:400}
 .low{margin-top:10px}
 .low h2{font-size:13px;margin:0 0 4px;color:var(--sub)}
 #brlist{margin:0;padding:0;list-style:none;font-size:15px;line-height:1.5}
 #brlist .w{color:var(--red);font-size:13px}
 #brlist .e{color:var(--sub);font-size:13px}
-#sv{position:fixed;inset:0;z-index:4;display:grid;place-items:center;padding:16px;background:rgba(20,28,44,.6)}
-#sv[hidden]{display:none}
-.svbox{display:flex;flex-direction:column;gap:10px;width:min(620px,100%);max-height:100%;padding:14px;background:#fff;border-radius:10px}
+.ovl{position:fixed;inset:0;z-index:4;display:grid;place-items:center;padding:16px;background:rgba(20,28,44,.6)}
+.ovl[hidden]{display:none}
+.svbox h2{margin:0;font-size:17px}
+#edForm{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+#edName{flex:1 1 160px;min-width:0;height:44px;padding:0 10px;border:1px solid var(--line);border-radius:6px;font-size:16px}
+#edCols{display:flex;gap:6px}
+.col{width:36px;height:36px;padding:0;border:3px solid #fff;border-radius:50%;background:var(--c);box-shadow:0 0 0 1px var(--line)}
+.col.on{box-shadow:0 0 0 3px var(--ink)}
+#edForm .btn{height:44px}
+#edList{flex:1;min-height:0;overflow:auto;margin:0;padding:0;list-style:none;border-top:1px solid var(--line)}
+#edList li{display:flex;align-items:center;gap:6px;padding:5px 2px;border-bottom:1px solid var(--line)}
+#edList b{flex:1;min-width:0;overflow-wrap:anywhere}
+#edList .btn{height:36px}
+.svbox{display:flex;flex-direction:column;gap:10px;width:min(620px,100%);max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);padding:14px;background:#fff;border-radius:10px}
 .svbox img{flex:1;min-height:0;width:100%;object-fit:contain;border:1px solid var(--line)}
 .svbox .hint{font-size:14px;color:var(--ink)}
 .svbox .btn{height:46px}
@@ -128,7 +139,13 @@ h1{font-size:20px;margin:0 6px 5px 0;white-space:nowrap}
 
   <section class="low"><h2>ブリッジ</h2><ul id="brlist"></ul></section>
 </div>
-<div id="sv" hidden><div class="svbox"><img id="svImg" alt="保存する歯式の画像"><p class="hint" id="svHint"></p><div class="seg"><button class="btn pri" id="svSave" type="button"></button><button class="btn" id="svClose" type="button">閉じる</button></div></div></div>
+<div id="ed" class="ovl" hidden><div class="svbox">
+  <h2>略号を足す・並べ替える</h2>
+  <form id="edForm"><input id="edName" maxlength="12" placeholder="略号の名前" autocomplete="off" aria-label="略号の名前"><span id="edCols" role="radiogroup" aria-label="色"></span><button class="btn pri" type="submit">足す</button></form>
+  <ul id="edList"></ul>
+  <div class="seg"><button class="btn" id="edReset" type="button">最初の並びに戻す</button><button class="btn" id="edClose" type="button">閉じる</button></div>
+</div></div>
+<div id="sv" class="ovl" hidden><div class="svbox"><img id="svImg" alt="保存する歯式の画像"><p class="hint" id="svHint"></p><div class="seg"><button class="btn pri" id="svSave" type="button"></button><button class="btn" id="svClose" type="button">閉じる</button></div></div></div>
 <div id="toast" role="status"></div>
 
 <script>
@@ -144,9 +161,14 @@ const num=n=>n>=50?'ABCDE'[n%10-1]:String(n%10);
 const tname=n=>quad(n)+num(n);
 const archOf=n=>UP.includes(n)?UP:LO.includes(n)?LO:null;
 const BLUE='#2a6fd6',RED='#d33a3a',GREEN='#1b9e5a',ORANGE='#c26a00',BLACK='#1f2a44',BR='#6d3bd1',TEAL='#12857b';
-const CODES=[['〇',BLUE],['×',BLACK],['CR',BLUE],['In',BLUE],['CAD In',BLUE],['FMC',BLUE],['前装冠',BLUE],['CAD',BLUE],['セラミッククラウン',BLUE],['アマルガム',BLUE],
+const CODES0=[['〇',BLUE],['×',BLACK],['CR',BLUE],['Cr',BLUE],['In',BLUE],['CAD In',BLUE],['FMC',BLUE],['前装冠',BLUE],['CAD',BLUE],['セラミッククラウン',BLUE],['アマルガム',BLUE],
   ['WSD',ORANGE],['C1',RED],['C2',RED],['C3',RED],['C4',RED],['IP',GREEN],['半埋伏',GREEN],['晩期残存',GREEN]];
-const codeColor=t=>(CODES.find(c=>c[0]===t)||[0,BLACK])[1];
+const KEY='shishiki-codes';
+let CODES=CODES0;try{const s=JSON.parse(localStorage.getItem(KEY));if(Array.isArray(s)&&s.length)CODES=s}catch(e){}
+// 一覧から消した略号も、記入済みの歯は同じ色のままにする
+const seen={};const remember=()=>{for(const [t,c] of CODES)seen[t]=c};remember();
+const codeColor=t=>seen[t]||BLACK;
+function saveCodes(){remember();try{localStorage.setItem(KEY,JSON.stringify(CODES))}catch(e){toast('この端末には略号を保存できませんでした')}}
 // シェーマの図（840×840）の中の歯の中心
 const TXY=[[382,112],[338,125],[293,150],[254,181],[218,216],[190,265],[168,320],[157,380]],DXY=[[386,240],[346,256],[314,286],[286,326],[266,370]];
 function toothXY(n){const q=Math.floor(n/10),i=n%10,p=q>=5,[x,y]=(p?DXY:TXY)[i-1],l=[2,3,6,7].includes(q),b=[3,4,7,8].includes(q);
@@ -231,7 +253,7 @@ const rowHtml=(a,col)=>'<i class="mline"></i>'+a.map((n,i)=>cellHtml(n,col(i))).
 function barsHtml(arch){return D.br.filter(b=>archOf(+Object.keys(b.t)[0])===arch).map(b=>{const ts=brTeeth(b),a=colP(arch.indexOf(ts[0])),z=colP(arch.indexOf(ts[ts.length-1]));
     return `<div class="bar" style="grid-column:${a}/${z+1}"><b>Br</b></div>`}).join('')}
 function padHtml(){const has=c=>sel.size&&[...sel].every(n=>(D.marks[n]||[]).includes(c)),off=brMode||!sel.size?'disabled':'';
-  return `<button type="button" class="ab br" id="brBtn">Br（ブリッジ）</button>`+CODES.map(([t,c],i)=>`<button type="button" class="ab ${t.length>4?'s':''} ${has(t)?'has':''}" style="--c:${c}" data-c="${i}" ${off}>${esc(t)}</button>`).join('')+`<button type="button" class="ab o" data-free="1" ${off}>その他（文字）</button>`}
+  return `<button type="button" class="ab br" id="brBtn">Br（ブリッジ）</button>`+CODES.map(([t,c],i)=>`<button type="button" class="ab ${t.length>4?'s':''} ${has(t)?'has':''}" style="--c:${c}" data-c="${i}" ${off}>${esc(t)}</button>`).join('')+`<button type="button" class="ab o s" data-free="1" ${off}>その他（文字）</button><button type="button" class="ab o s" id="edBtn">＋ 略号を足す</button>`}
 function drawOverlay(c,showSel){
   for(const n in D.marks)if(D.marks[n].includes('×')){const [x,y,r]=toothXY(+n);c.strokeStyle=BLACK;c.lineWidth=7;c.lineCap='round';c.beginPath();c.moveTo(x-r,y-r);c.lineTo(x+r,y+r);c.moveTo(x+r,y-r);c.lineTo(x-r,y+r);c.stroke()}
   for(const b of D.br){const ts=brTeeth(b),ps=ts.map(toothXY);
@@ -293,6 +315,25 @@ function renderChart(){const K=2,W=800,M=14,hasD=[...DU,...DL].some(n=>D.marks[n
   drawBars(c,LO,xP,cw,y,false);y+=20;lab('右下','左下',y);
   return cv}
 
+// 略号の編集（この端末に覚える。記入済みの歯はそのまま）
+const PALETTE=[[BLUE,'青'],[RED,'赤'],[GREEN,'緑'],[ORANGE,'オレンジ'],[BLACK,'黒']];
+let edColor=BLUE;
+function drawEditor(){
+  $('edCols').innerHTML=PALETTE.map(([c,n])=>`<button type="button" class="col ${c===edColor?'on':''}" style="--c:${c}" data-col="${c}" role="radio" aria-checked="${c===edColor}" aria-label="${n}"></button>`).join('');
+  $('edList').innerHTML=CODES.map(([t,c],i)=>`<li><b style="color:${c}">${esc(t)}</b><button class="btn" type="button" data-up="${i}" ${i?'':'disabled'} aria-label="${esc(t)}を上へ">上へ</button><button class="btn" type="button" data-del="${i}" aria-label="${esc(t)}を削除">削除</button></li>`).join('')}
+function openEditor(){$('ed').hidden=false;drawEditor();$('edName').focus()}
+function codesChanged(){saveCodes();drawEditor();render()}
+$('edForm').addEventListener('submit',e=>{e.preventDefault();const n=$('edName').value.trim();if(!n)return;
+  if(n==='Br'){toast('Br は上のボタンで入れます');return}
+  if(CODES.some(c=>c[0]===n)){toast(n+' はすでにあります');return}
+  CODES=[...CODES,[n,edColor]];$('edName').value='';codesChanged();const l=$('edList');l.scrollTop=l.scrollHeight;$('edName').focus()});
+$('ed').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;
+  if(d.col){edColor=d.col;drawEditor()}
+  else if(d.up){const i=+d.up,a=[...CODES];[a[i-1],a[i]]=[a[i],a[i-1]];CODES=a;codesChanged()}
+  else if(d.del){CODES=CODES.filter((c,i)=>i!==+d.del);codesChanged()}});
+$('edClose').onclick=()=>$('ed').hidden=true;
+$('edReset').onclick=()=>{if(confirm('足した略号を消して、最初の並びに戻しますか？')){CODES=CODES0;codesChanged()}};
+
 // iPad は共有シートの「画像を保存」で写真に入る。共有が使えないページ（https でないとき）は画像の長押しで保存する
 let svFile=null,svUrl=null;
 const isTouch=()=>navigator.maxTouchPoints>1;
@@ -314,6 +355,7 @@ async function doSave(){
 
 $('pad').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
   if(b.id==='brBtn'){setBrMode(!brMode);return}
+  if(b.id==='edBtn'){openEditor();return}
   if(b.dataset.free){const t=(prompt('入れる文字（例：根充、要再評価）')||'').trim();if(t)pressCode(t);return}
   pressCode(CODES[+b.dataset.c][0])});
 $('vP').onclick=()=>setView('P');$('vD').onclick=()=>setView('D');$('vB').onclick=()=>setView('B');
