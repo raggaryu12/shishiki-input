@@ -166,8 +166,8 @@ const num=n=>n>=50?'ABCDE'[n%10-1]:String(n%10);
 const tname=n=>quad(n)+num(n);
 const archOf=n=>UP.includes(n)?UP:LO.includes(n)?LO:null;
 const BLUE='#2a6fd6',RED='#d33a3a',GREEN='#1b9e5a',ORANGE='#c26a00',BLACK='#1f2a44',BR='#6d3bd1',TEAL='#12857b';
-const CODES0=[['〇',BLUE],['×',BLACK],['CR',BLUE],['Cr',BLUE],['In',BLUE],['CAD In',BLUE],['FMC',BLUE],['前装冠',BLUE],['CAD',BLUE],['セラミッククラウン',BLUE],['アマルガム',BLUE],
-  ['WSD',ORANGE],['C1',RED],['C2',RED],['C3',RED],['C4',RED],['IP',GREEN],['半埋伏',GREEN],['晩期残存',GREEN]];
+const CODES0=[['〇',BLACK],['×',BLACK],['CR',BLUE],['アマルガム',BLUE],['In',BLUE],['CAD In',BLUE],['Cr',BLUE],['FMC',BLUE],['前装冠',BLUE],['CAD',BLUE],['セラミッククラウン',BLUE],
+  ['WSD',RED],['C1',RED],['C2',RED],['C3',RED],['C4',RED],['晩期残存',RED],['半埋伏',GREEN],['IP',GREEN]];
 const KEY='shishiki-codes';
 let CODES=CODES0;try{const s=JSON.parse(localStorage.getItem(KEY));if(Array.isArray(s)&&s.length)CODES=s}catch(e){}
 // 一覧から消した略号も、記入済みの歯は同じ色のままにする
